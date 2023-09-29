@@ -1,0 +1,152 @@
+---
+title: "Assignment1"
+author: "Chenjia Kuang"
+format: html
+editor: visual
+---
+
+```{r}
+library('R.utils')
+library('tidyverse')
+library('ggplot2')
+library('data.table')
+```
+
+## Step 1
+
+```{r}
+setwd("/Users/chenjiak/Downloads")
+read.csv("ad_viz_plotval_data2022.csv")
+read.csv("ad_viz_plotval_data2002.csv")
+```
+
+```{r}
+data_2022 <- data.table::fread("ad_viz_plotval_data2022.csv")
+data_2002 <- data.table::fread("ad_viz_plotval_data2002.csv")
+```
+
+```{r}
+dim(data_2022)
+head(data_2022)
+tail(data_2022)
+names(data_2022)
+typeof(data_2022)
+```
+
+```{r}
+dim(data_2002)
+head(data_2002)
+tail(data_2002)
+names(data_2002)
+typeof(data_2002)
+```
+
+## Step 2
+
+```{r}
+#Combine the two years of data into one data frame.
+
+data_2002$year = as.numeric(strsplit(data_2002$Date, split = "/")[[1]][3])
+data_2022$year = as.numeric(strsplit(data_2022$Date, split = "/")[[1]][3])
+
+combined_data <- bind_rows(data_2022, data_2002)
+```
+
+```{r}
+library("dplyr")
+
+#
+combined_data <- combined_data %>%
+  rename("lon" = "SITE_LONGITUDE",
+         "lat" = "SITE_LATITUDE",
+         "pm25_conc" = "Daily Mean PM2.5 Concentration",
+         "site_id" = "Site ID")
+```
+
+## Step 3
+
+Create a basic map in leaflet() that shows the locations of the sites (make sure to use different colors for each year). Summarize the spatial distribution of the monitoring sites.
+
+```{r}
+library('leaflet')
+```
+
+```{r}
+#Create a basic map in leaflet() that shows the locations of the sites 
+colors_by_year <- colorFactor(palette = c("blue", "red"), domain = combined_data$year)
+
+leaflet(combined_data) %>%
+  addTiles() %>%
+  addCircleMarkers(~lon, ~lat, color = ~colors_by_year(year),
+                   popup = ~year, radius = 3) %>%
+  addLegend(pal = colors_by_year, values = ~year, title = "Year")
+```
+
+```{r}
+#Summarize the spatial distribution of the monitoring sites
+summary(combined_data$lat)
+summary(combined_data$lon)
+```
+
+## Step 4
+
+```{r}
+#Check for any missing values of PM2.5
+mean(is.na(combined_data$pm25_conc))
+
+#Check for any implausible values
+implausible_pm25 <- combined_data[combined_data$pm25_conc < 0]
+
+summary(implausible_pm25)
+```
+
+```{r}
+#Explore the proportions
+nrow(combined_data)
+nrow(implausible_pm25)
+
+combined_data <- combined_data %>%
+  mutate(proportion = nrow(implausible_pm25) / sum(nrow(combined_data)))
+```
+
+## Step 5
+
+```{r}
+#Remove the implausible data
+combined_data2 <- combined_data[pm25_conc < 35]
+```
+
+```{r}
+#Creat exploratory plots for state
+#boxplots
+ggplot(combined_data2, aes(x = STATE, y = pm25_conc)) +
+    geom_boxplot() +
+    labs(title = "Distribution of PM2.5 Concentrations by State", x = "State", y = "PM2.5 Concentration") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 100))
+```
+
+```{r}
+#Creat exploratory plots for county
+
+#boxplots
+combined_data2 %>%
+  ggplot(mapping = aes(x = COUNTY, y = pm25_conc), color = year) +
+    geom_boxplot() +
+    labs(title = "Distribution of PM2.5 Concentrations by County", x = "County", y = "PM2.5 Concentration") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+#Creat exploratory plots for site in Los Angeles
+combined_dataLA <- filter(combined_data,COUNTY == "Los Angeles")
+
+#boxplots
+ggplot(combined_dataLA, aes(x = CBSA_NAME, y = pm25_conc), color = year) +
+    geom_jitter() +
+    labs(title = "Distribution of PM2.5 Concentrations by Site in Los Angeles", x = "Site in Los Angeles", y = "PM2.5 Concentration") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 10))
+```
